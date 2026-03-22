@@ -26,4 +26,3 @@ The ```VoiceId``` parameter can be any id you got when you selected option ```1`
 
 # Warning
 Warning, this program will most likely not be mantained.
-See lisence for more info.
