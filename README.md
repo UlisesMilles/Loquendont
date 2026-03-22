@@ -1,5 +1,4 @@
-# NOTICE:
-Yeah, so... Microslop took down an API I was exploiting to get azure like voices from them without paing anything. So this project only works with local voices from SAPI until I decide I need it again and bother to fix it. (which is very unlikely)
+
 # Loquendon't
 OpenSoucre TTS script that ONLY WORKS ON WINDOWS
 
