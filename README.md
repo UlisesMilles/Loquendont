@@ -26,5 +26,5 @@ The input file doesn't have a defined structure, but you can use just one comman
 The ```VoiceId``` parameter can be any id you got when you selected option ```1``` while running the program.
 
 # Warning
-Warning, this program will most likely not be mantained, so, as you can see, there is no lisenceing whatsoever.
-So you have full permission to do whatever you want with this program, I would appretiate if you gave me credit for the program. But if not, it's ok.
+Warning, this program will most likely not be mantained.
+See lisence for more info.
