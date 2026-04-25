@@ -15,7 +15,6 @@ except: pass
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# FFMPEG path setup for Render
 ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg", "ffmpeg")
 if os.path.exists(ffmpeg_path):
     AudioSegment.converter = ffmpeg_path
@@ -30,20 +29,26 @@ def translate_text(text, target_lang):
             res = response.read().decode('utf-8')
             return res.split('"')[1]
     except:
-        return text # Fallback to original if translation fails
+        return text
 
 @app.get("/voices")
 async def get_voices():
     voices = await edge_tts.VoicesManager.create()
     voice_list = voices.voices
-    return [
-        {
-            "ShortName": v["ShortName"], 
-            "FriendlyName": v["FriendlyName"].split("-")[-1].strip(), # Removes the Locale prefix
-            "Language": v["Locale"].split("-")[0]
-        } 
-        for v in voice_list
-    ]
+    processed = []
+    for v in voice_list:
+        # Determine if multilingual based on VoiceTag
+        is_multi = "Multilingual" in v.get("VoiceTag", {}).get("VoicePersonalities", [])
+        
+        processed.append({
+            "ShortName": v["ShortName"],
+            "Name": v["FriendlyName"].split("-")[-1].strip(),
+            "Country": v["FriendlyName"].split("(")[1].split(",")[0] if "(" in v["FriendlyName"] else "Unknown",
+            "Language": v["Locale"].split("-")[0],
+            "Locale": v["Locale"],
+            "IsMultilingual": is_multi
+        })
+    return processed
 
 async def process_text_to_audio(text: str):
     tokens = re.split(CMD_PATTERN, text)
@@ -77,10 +82,8 @@ async def generate(text: str = Query(...)):
 
 @app.get("/preview")
 async def preview(voice: str, lang: str):
-    """Special endpoint for translated previews"""
     original_msg = "This is a preview of the selected voice."
     translated_msg = translate_text(original_msg, lang)
-    
     out = f"/tmp/preview_{uuid.uuid4()}.mp3"
     communicate = edge_tts.Communicate(translated_msg, voice)
     await communicate.save(out)
