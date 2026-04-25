@@ -12,36 +12,34 @@
         h2 { border-bottom: 2px solid var(--glow); padding-bottom: 10px; margin-top: 0; text-transform: uppercase; letter-spacing: 2px; }
         .accent { color: #fff; font-weight: bold; background: #222; padding: 2px 5px; border-radius: 3px; }
         textarea { width: 100%; flex: 1; background: var(--panel); color: var(--glow); border: 1px solid #333; padding: 15px; font-size: 16px; outline: none; resize: none; box-sizing: border-box; }
+        textarea:disabled { opacity: 0.5; }
         .toolbar { display: flex; gap: 15px; flex-wrap: wrap; background: #181818; padding: 15px; border-radius: 5px; align-items: center; border: 1px solid #333; }
         .setting-group { display: flex; align-items: center; gap: 8px; font-size: 12px; border-left: 1px solid #444; padding-left: 10px; }
         select, input { background: #000; color: var(--glow); border: 1px solid #444; padding: 8px; }
         button { padding: 10px 15px; background: #000; color: var(--glow); border: 1px solid var(--glow); cursor: pointer; font-family: inherit; font-weight: bold; text-transform: uppercase; font-size: 11px; }
-        button:hover { background: var(--glow); color: #000; }
+        button:hover:not(:disabled) { background: var(--glow); color: #000; }
+        button:disabled { opacity: 0.3; cursor: not-allowed; border-color: #444; color: #444; }
         button.primary { background: var(--glow); color: #000; padding: 15px 40px; font-size: 18px; }
         .status-bar { display: flex; align-items: center; justify-content: space-between; }
-        .toggle-btn { position: absolute; left: 10px; top: 10px; z-index: 10; font-size: 10px; padding: 5px; opacity: 0.5; }
+        #status { font-weight: bold; }
+        .working { color: #ff0; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
     </style>
 </head>
 <body>
 
-    <button class="toggle-btn" onclick="toggleSidebar()">[ TOGGLE INFO ]</button>
-
     <div class="sidebar" id="sidebar">
-        <h2>Quick Start</h2>
-        <p>Welcome to <span class="accent">Loquendon't</span>.</p>
-        <p>Punctuation is now <b>automated</b>. Use the timing settings to adjust the feel of the speech.</p>
-        <ol>
-            <li>Select Voice.</li>
-            <li>Write text with punctuation.</li>
-            <li>Adjust "Short" and "Long" stops.</li>
-            <li>Generate.</li>
-        </ol>
+        <h2>System Status</h2>
+        <p>Automation: <span class="accent">ENABLED</span></p>
+        <p>Punctuation stops and line breaks are processed automatically.</p>
+        <hr style="border:0; border-top:1px solid #333; margin: 20px 0;">
+        <div id="log-console" style="font-size: 10px; color: #666;">Ready for input...</div>
     </div>
 
     <div class="main-content">
         <h2>Audio Constructor</h2>
         
-        <div class="toolbar">
+        <div class="toolbar" id="main-toolbar">
             <select id="voice-select"><option>Polling...</option></select>
             <button onclick="previewVoice()">Preview</button>
             <button onclick="insertVoice()">+ Voice Tag</button>
@@ -52,15 +50,9 @@
                 <span>Long Stop (ms):</span>
                 <input type="number" id="long-p" value="850" style="width: 60px;">
             </div>
-
-            <div class="setting-group">
-                <span>Custom Pause:</span>
-                <input type="number" id="pause-amt" value="1000" style="width: 70px;">
-                <button onclick="insertPause()">+ Pause</button>
-            </div>
         </div>
 
-        <textarea id="txt-input" placeholder="Example: Hello, how are you today? I am doing great... I think!"></textarea>
+        <textarea id="txt-input" placeholder="Type your script here..."></textarea>
         
         <div class="status-bar">
             <button class="primary" id="run-btn" onclick="generate()">Generate & Download</button>
@@ -85,10 +77,63 @@
                     opt.setAttribute('data-lang', v.Language);
                     select.appendChild(opt);
                 });
-            } catch (err) { select.innerHTML = "<option>Error</option>"; }
+            } catch (err) { select.innerHTML = "<option>Error Connecting</option>"; }
         }
 
-        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('hidden'); }
+        function setUIBusy(busy) {
+            const btn = document.getElementById('run-btn');
+            const txt = document.getElementById('txt-input');
+            const status = document.getElementById('status');
+            const toolbar = document.getElementById('main-toolbar');
+
+            if (busy) {
+                btn.disabled = true;
+                txt.disabled = true;
+                status.innerText = "PROCESSING REQUEST...";
+                status.className = "working";
+                btn.innerText = "BUSY...";
+            } else {
+                btn.disabled = false;
+                txt.disabled = false;
+                status.innerText = "SYSTEM READY";
+                status.className = "";
+                btn.innerText = "Generate & Download";
+            }
+        }
+
+        async function generate() {
+            const text = document.getElementById('txt-input').value;
+            if(!text.trim()) return;
+            
+            const shortP = document.getElementById('short-p').value;
+            const longP = document.getElementById('long-p').value;
+            
+            setUIBusy(true);
+
+            try {
+                const url = `${BASE_URL}/generate?text=${encodeURIComponent(text)}&short_p=${shortP}&long_p=${longP}`;
+                
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Server Error");
+
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = downloadUrl;
+                a.download = `loquendont_${Date.now()}.mp3`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(downloadUrl);
+                
+                document.getElementById('log-console').innerText = "Last task: Downloaded successfully.";
+            } catch (err) {
+                alert("Request failed. The server might be timing out or waking up.");
+                document.getElementById('log-console').innerText = "Last task: ERROR.";
+            } finally {
+                setUIBusy(false);
+            }
+        }
 
         function insertVoice() {
             const v = document.getElementById('voice-select').value;
@@ -97,34 +142,11 @@
             area.focus();
         }
 
-        function insertPause() {
-            const ms = document.getElementById('pause-amt').value || 1000;
-            const area = document.getElementById('txt-input');
-            area.setRangeText(`\n/pause=${ms}\n`, area.selectionStart, area.selectionEnd, 'end');
-            area.focus();
-        }
-
         async function previewVoice() {
             const select = document.getElementById('voice-select');
             const voice = select.value;
             const lang = select.selectedOptions[0].getAttribute('data-lang');
-            document.getElementById('status').innerText = "LOADING PREVIEW...";
-            new Audio(`${BASE_URL}/preview?voice=${voice}&lang=${lang}`).play()
-                .then(() => document.getElementById('status').innerText = "PLAYING PREVIEW");
-        }
-
-        function generate() {
-            const text = document.getElementById('txt-input').value;
-            if(!text.trim()) return;
-            
-            const shortP = document.getElementById('short-p').value;
-            const longP = document.getElementById('long-p').value;
-            
-            document.getElementById('status').innerText = "CONSTRUCTING AUDIO...";
-            const url = `${BASE_URL}/generate?text=${encodeURIComponent(text)}&short_p=${shortP}&long_p=${longP}`;
-            window.location.assign(url);
-            
-            setTimeout(() => { document.getElementById('status').innerText = "SYSTEM READY"; }, 5000);
+            new Audio(`${BASE_URL}/preview?voice=${voice}&lang=${lang}`).play();
         }
 
         loadVoices();

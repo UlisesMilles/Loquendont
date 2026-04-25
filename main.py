@@ -52,7 +52,6 @@ async def process_text_to_audio(text: str, short_p: int, long_p: int):
     
     for token in tokens:
         if not token: continue
-        
         if token.startswith("/voice="):
             current_voice = token.split("=")[1].strip()
         elif token.startswith("/pause="):
@@ -63,14 +62,12 @@ async def process_text_to_audio(text: str, short_p: int, long_p: int):
         elif token == '\n\n':
             combined += AudioSegment.silent(duration=long_p)
         elif token in ['.', '!', '?', '...']:
-            # Long Stop
             temp_name = f"/tmp/{uuid.uuid4()}.mp3"
             await edge_tts.Communicate(token, current_voice).save(temp_name)
             combined += AudioSegment.from_mp3(temp_name)
             combined += AudioSegment.silent(duration=long_p)
             os.remove(temp_name)
         elif token in [',', ';']:
-            # Short Stop
             temp_name = f"/tmp/{uuid.uuid4()}.mp3"
             await edge_tts.Communicate(token, current_voice).save(temp_name)
             combined += AudioSegment.from_mp3(temp_name)
@@ -83,7 +80,6 @@ async def process_text_to_audio(text: str, short_p: int, long_p: int):
             await edge_tts.Communicate(clean_token, current_voice).save(temp_name)
             combined += AudioSegment.from_mp3(temp_name)
             os.remove(temp_name)
-            
     return combined
 
 @app.get("/generate")
@@ -91,7 +87,7 @@ async def generate(text: str = Query(...), short_p: int = 300, long_p: int = 800
     final_path = f"/tmp/final_{uuid.uuid4()}.mp3"
     audio_data = await process_text_to_audio(text, short_p, long_p)
     audio_data.export(final_path, format="mp3")
-    return FileResponse(final_path, media_type="audio/mpeg")
+    return FileResponse(final_path, media_type="audio/mpeg", filename="loquendont.mp3")
 
 @app.get("/preview")
 async def preview(voice: str, lang: str):
