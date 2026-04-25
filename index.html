@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Loquendon't Web</title>
+    <style>
+        body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff41; padding: 40px; max-width: 800px; margin: auto; }
+        h2 { border-bottom: 2px solid #00ff41; padding-bottom: 10px; }
+        textarea { width: 100%; height: 200px; background: #111; color: #00ff41; border: 1px solid #00ff41; padding: 10px; font-size: 14px; outline: none; }
+        .controls { margin-top: 20px; display: flex; align-items: center; gap: 20px; }
+        button { padding: 15px 30px; border: 2px solid #00ff41; background: #000; color: #00ff41; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        button:hover { background: #00ff41; color: #000; }
+        button:disabled { border-color: #333; color: #333; cursor: wait; }
+        #status { font-size: 14px; font-weight: bold; }
+        .hint { color: #888; font-size: 12px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h2>LOQUENDON'T // CLOUD_INTERFACE</h2>
+    
+    <textarea id="txt-input">/voice=en-US-AndrewNeural
+Testing the Render backend.
+/pause=1500
+The synthesis is now happening in the cloud.
+/voice=en-GB-SoniaNeural
+And it sounds much better.</textarea>
+    
+    <div class="controls">
+        <button id="run-btn" onclick="generate()">Generate & Download</button>
+        <div id="status">READY</div>
+    </div>
+
+    <p class="hint">Note: If the server is "sleeping," the first request may take ~45 seconds to wake up.</p>
+
+    <script>
+        // UPDATE THIS TO YOUR ACTUAL RENDER URL
+        const RENDER_URL = "https://your-service-name.onrender.com/generate";
+
+        function generate() {
+            const btn = document.getElementById('run-btn');
+            const status = document.getElementById('status');
+            const text = document.getElementById('txt-input').value;
+
+            btn.disabled = true;
+            status.innerText = "WAKING UP ENGINE / PROCESSING...";
+            status.style.color = "#ffff00";
+
+            // Construct the API URL
+            const finalUrl = `${RENDER_URL}?text=${encodeURIComponent(text)}`;
+
+            // Use window.location.assign to trigger the file download
+            // This is better than window.location.href as it doesn't leave the page
+            window.location.assign(finalUrl);
+
+            // Since we can't easily detect when a 'download' response finishes,
+            // we re-enable the button after a reasonable delay.
+            setTimeout(() => {
+                btn.disabled = false;
+                status.innerText = "REQUEST SENT!";
+                status.style.color = "#00ff41";
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
