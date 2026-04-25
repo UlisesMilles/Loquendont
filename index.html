@@ -71,47 +71,77 @@
     </div>
 
     <script>
-        // UPDATE THIS TO YOUR ACTUAL RENDER URL
         const RENDER_URL = "https://loquendont.onrender.com/generate";
-
+        const txtInput = document.getElementById('txt-input');
+        const status = document.getElementById('status');
+        const sidebar = document.getElementById('sidebar');
+        const voiceSelect = document.getElementById('voice-select');
+        const pauseInput = document.getElementById('pause-amt');
         function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('hidden');
+            sidebar.classList.toggle('hidden');
         }
-
         function insertVoice() {
-            const v = document.getElementById('voice-select').value;
-            const area = document.getElementById('txt-input');
-            area.value += (area.value ? "\n" : "") + `/voice=${v}\n`;
+            const voice = voiceSelect.value;
+            const currentPos = txtInput.selectionStart;
+            const text = txtInput.value;
+    
+            const command = (text.length > 0 ? "\n" : "") + `/voice=${voice}\n`;
+    
+            txtInput.value = text.slice(0, currentPos) + command + text.slice(currentPos);
+            txtInput.focus();
         }
-
         function insertPause() {
-            const ms = document.getElementById('pause-amt').value || 1000;
-            const area = document.getElementById('txt-input');
-            area.value += (area.value ? "\n" : "") + `/pause=${ms}\n`;
+            const ms = pauseInput.value || 1000;
+            const currentPos = txtInput.selectionStart;
+            const text = txtInput.value;
+    
+            const command = (text.length > 0 ? "\n" : "") + `/pause=${ms}\n`;
+    
+            txtInput.value = text.slice(0, currentPos) + command + text.slice(currentPos);
+            txtInput.focus();
         }
-
-        // ACCURATE PREVIEW: Hits your Render server for a small sample
         async function previewVoice() {
-            const voice = document.getElementById('voice-select').value;
-            const status = document.getElementById('status');
-            status.innerText = "LOADING PREVIEW...";
-            
-            // We send a tiny request to your server just for the preview
-            const previewUrl = `${RENDER_URL}?text=${encodeURIComponent('/voice=' + voice + ' This is a preview.')}`;
-            
-            const audio = new Audio(previewUrl);
-            audio.play().then(() => {
-                status.innerText = "PLAYING PREVIEW";
-            }).catch(e => {
-                status.innerText = "PREVIEW ERROR (Server waking up?)";
-            });
-        }
 
+            const voice = voiceSelect.value;
+            const voiceFriendlyName = voiceSelect.options[voiceSelect.selectedIndex].text;
+    
+            status.innerText = `FETCHING PREVIEW: ${voiceFriendlyName}...`;
+            status.style.color = "#ffff00";
+
+            const previewCmd = `/voice=${voice} This is a preview of the ${voiceFriendlyName} voice.`;
+            const finalUrl = `${RENDER_URL}?text=${encodeURIComponent(previewCmd)}`;
+
+            try {
+                const audio = new Audio(finalUrl);
+                await audio.play();
+                status.innerText = "PLAYING PREVIEW";
+                status.style.color = "#00ff41";
+            } catch (err) {
+                console.error(err);
+                status.innerText = "PREVIEW ERROR: Server waking up?";
+                status.style.color = "#ff0000";
+            }
+        }
         function generate() {
-            const text = document.getElementById('txt-input').value;
-            if(!text.trim()) return;
-            document.getElementById('status').innerText = "GENERATING FULL MP3...";
-            window.location.assign(`${RENDER_URL}?text=${encodeURIComponent(text)}`);
+            const text = txtInput.value.trim();
+    
+            if (!text) {
+                status.innerText = "ERROR: INPUT EMPTY";
+                status.style.color = "#ff0000";
+                return;
+            }
+
+
+            status.innerText = "GENERATING FULL AUDIO (PLEASE WAIT)...";
+            status.style.color = "#ffff00";
+
+            const finalUrl = `${RENDER_URL}?text=${encodeURIComponent(text)}`;
+            window.location.assign(finalUrl);
+
+            setTimeout(() => {
+                status.innerText = "SYSTEM READY";
+                status.style.color = "#00ff41";
+            }, 8000);
         }
     </script>
 </body>
