@@ -2,169 +2,280 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Loquendon't // Cloud Interface</title>
+    <title>LOQUENDONT // MAIN_MATRIX</title>
     <style>
-        :root { --glow: #00ff41; --bg: #0a0a0a; --panel: #111; }
-        body { font-family: 'Courier New', monospace; background: var(--bg); color: var(--glow); margin: 0; display: flex; height: 100vh; }
-        .sidebar { width: 300px; padding: 30px; border-right: 1px solid #333; background: #0d0d0d; transition: 0.3s; overflow-y: auto; flex-shrink: 0; }
-        .sidebar.hidden { width: 0; padding: 0; border: none; overflow: hidden; }
-        .main-content { flex: 1; padding: 40px; display: flex; flex-direction: column; gap: 20px; position: relative; min-width: 0; }
-        h2 { border-bottom: 2px solid var(--glow); padding-bottom: 10px; margin-top: 0; text-transform: uppercase; letter-spacing: 2px; }
-        .accent { color: #fff; font-weight: bold; background: #222; padding: 2px 5px; border-radius: 3px; }
-        textarea { width: 100%; flex: 1; background: var(--panel); color: var(--glow); border: 1px solid #333; padding: 15px; font-size: 16px; outline: none; resize: none; box-sizing: border-box; }
-        textarea:disabled { opacity: 0.5; }
-        .toolbar { display: flex; gap: 15px; flex-wrap: wrap; background: #181818; padding: 15px; border-radius: 5px; align-items: center; border: 1px solid #333; }
-        .setting-group { display: flex; align-items: center; gap: 8px; font-size: 12px; border-left: 1px solid #444; padding-left: 10px; }
-        select, input { background: #000; color: var(--glow); border: 1px solid #444; padding: 8px; }
-        button { padding: 10px 15px; background: #000; color: var(--glow); border: 1px solid var(--glow); cursor: pointer; font-family: inherit; font-weight: bold; text-transform: uppercase; font-size: 11px; }
-        button:hover:not(:disabled) { background: var(--glow); color: #000; }
-        button:disabled { opacity: 0.3; cursor: not-allowed; border-color: #444; color: #444; }
-        button.primary { background: var(--glow); color: #000; padding: 15px 40px; font-size: 18px; }
-        .status-bar { display: flex; align-items: center; justify-content: space-between; }
-        .footer-note { font-size: 11px; color: #666; margin-top: -10px; }
-        .working { color: #ff0; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
-        .toggle-btn { position: absolute; left: 10px; top: 10px; z-index: 10; font-size: 10px; padding: 5px; opacity: 0.5; }
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&display=swap');
+
+        :root {
+            --matrix-green: #00ff41;
+            --dark-green: #003b00;
+            --bg: #0a0a0a;
+        }
+
+        * { box-sizing: border-box; }
+
+        body, html {
+            margin: 0; padding: 0; height: 100%; width: 100%;
+            background-color: #000;
+            color: var(--matrix-green);
+            font-family: 'Courier Prime', monospace;
+            overflow: hidden;
+        }
+
+        #matrix-canvas {
+            position: fixed; top: 0; left: 0;
+            z-index: 1; opacity: 0.8;
+        }
+
+        #wake-screen {
+            position: fixed; inset: 0; z-index: 1000;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: rgba(0, 0, 0, 0.7);
+            transition: transform 0.8s cubic-bezier(0.7, 0, 0.3, 1);
+        }
+
+        .matrix-title {
+            font-size: 4rem; font-weight: bold;
+            letter-spacing: 10px; margin-bottom: 30px;
+            text-shadow: 0 0 20px var(--matrix-green);
+            z-index: 1001;
+            pointer-events: none;
+            user-select: none;
+            text-align: center;
+        }
+
+        #wake-btn {
+            background: transparent; color: var(--matrix-green);
+            border: 2px solid var(--matrix-green);
+            padding: 20px 60px; font-size: 1.5rem;
+            font-family: inherit; cursor: pointer;
+            box-shadow: 0 0 15px var(--dark-green);
+            transition: 0.3s; z-index: 1002;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        #wake-btn:hover {
+            background: var(--matrix-green); color: #000;
+            box-shadow: 0 0 35px var(--matrix-green);
+            transform: scale(1.05);
+        }
+
+        .loading-container {
+            display: none; width: 400px; text-align: center; margin-top: 20px;
+        }
+
+        .progress-track {
+            width: 100%; height: 10px; border: 1px solid var(--matrix-green);
+            background: rgba(0, 59, 0, 0.2); position: relative;
+            overflow: hidden;
+        }
+
+        #progress-bar {
+            width: 0%; height: 100%; background: var(--matrix-green);
+            box-shadow: 0 0 15px var(--matrix-green); transition: width 0.4s ease;
+        }
+
+        .status-msg { font-size: 12px; margin-top: 15px; letter-spacing: 2px; }
+
+        #main-app {
+            position: relative; z-index: 100;
+            display: none; height: 100vh; padding: 20px;
+            grid-template-columns: 320px 1fr; gap: 20px;
+            opacity: 0; transition: 1s ease-in;
+        }
+
+        .panel {
+            background: rgba(0, 10, 0, 0.95);
+            border: 1px solid var(--matrix-green);
+            padding: 20px; display: flex; flex-direction: column;
+            box-shadow: 0 0 20px #000;
+        }
+
+        textarea {
+            flex: 1; background: #000; color: var(--matrix-green);
+            border: 1px solid var(--dark-green); padding: 15px;
+            font-family: inherit; font-size: 16px; outline: none;
+            resize: none; margin: 15px 0;
+        }
+
+        select, input {
+            background: #000; color: var(--matrix-green);
+            border: 1px solid var(--matrix-green); padding: 5px;
+            font-family: inherit; margin-bottom: 10px;
+        }
+
+        .btn-action {
+            background: var(--matrix-green); color: #000;
+            border: none; padding: 15px; cursor: pointer;
+            font-weight: bold; font-family: inherit;
+        }
+
+        .exit-top { transform: translateY(-100%); }
     </style>
 </head>
 <body>
 
-    <button class="toggle-btn" onclick="toggleSidebar()">[ TOGGLE INFO ]</button>
+    <canvas id="matrix-canvas"></canvas>
 
-    <div class="sidebar" id="sidebar">
-        <h2>Quick Start</h2>
-        <p>Welcome to the <span class="accent">Loquendon't</span> engine.</p>
-        <ol>
-            <li>Select a <span class="accent">Voice</span> and insert it.</li>
-            <li>Type your text. Mix multiple voices if you want!</li>
-            <li>Add <span class="accent">Pauses</span> to make it sound natural.</li>
-            <li>Hit <span class="accent">Generate</span> and your file will auto-download.</li>
-        </ol>
+    <div id="wake-screen">
+        <div class="matrix-title">SERVER IS SLEEPING</div>
+        <button id="wake-btn" onclick="startWakeProcess()">WAKE UP</button>
+        
+        <div class="loading-container" id="loader">
+            <div class="progress-track"><div id="progress-bar"></div></div>
+            <div class="status-msg" id="status-text">SENDING_WAKE_COMMAND...</div>
+        </div>
     </div>
 
-    <div class="main-content">
-        <h2>Audio Constructor</h2>
-        
-        <div class="toolbar" id="main-toolbar">
-            <select id="voice-select"><option>Polling...</option></select>
-            <button onclick="previewVoice()">Preview</button>
-            <button onclick="insertVoice()">Insert /voice=</button>
-
-            <div class="setting-group">
-                <span>Short Stop (ms):</span>
-                <input type="number" id="short-p" value="350" style="width: 60px;">
-                <span>Long Stop (ms):</span>
-                <input type="number" id="long-p" value="850" style="width: 60px;">
-            </div>
-
-            <div class="setting-group">
-                <span>Pause (ms):</span>
-                <input type="number" id="pause-amt" value="1000" style="width: 70px;">
-                <button onclick="insertPause()">Insert /pause=</button>
+    <div id="main-app">
+        <div class="panel">
+            <h3>VOICE_CONTROL</h3>
+            <select id="voice-select"></select>
+            <button class="btn-action" onclick="previewVoice()">TEST_SIGNAL</button>
+            <div style="margin-top: auto; font-size: 10px; opacity: 0.6; border-top: 1px solid var(--dark-green); padding-top: 10px;">
+                CONNECTED_TO_MAIN_FRAME
             </div>
         </div>
 
-        <textarea id="txt-input" placeholder="Type here..."></textarea>
-        <div class="footer-note">Note: Punctuation marks and blank lines are processed automatically based on Timing settings.</div>
-        
-        <div class="status-bar">
-            <button class="primary" id="run-btn" onclick="generate()">Generate & Download</button>
-            <div id="status">SYSTEM READY</div>
+        <div class="panel">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button onclick="insertVoice()">+ Voice_Tag</button>
+                <button onclick="insertPause()">+ Pause_Tag</button>
+                <input type="number" id="pause-amt" value="1000" style="width: 80px; margin-bottom: 0;">ms
+            </div>
+            <textarea id="txt-input" placeholder=">> Input text for synthesis..."></textarea>
+            <button class="btn-action" id="gen-btn" onclick="generateAudio()">GENERATE_NEURAL_STREAM</button>
         </div>
     </div>
 
     <script>
-        const BASE_URL = "https://loquendont.onrender.com";
+        const BASE_URL = "https://loquendont.onrender.com"; // UPDATE THIS
 
-        async function loadVoices() {
-            const select = document.getElementById('voice-select');
-            try {
-                const response = await fetch(`${BASE_URL}/voices`);
-                const voices = await response.json();
-                select.innerHTML = "";
-                voices.sort((a, b) => a.Locale.localeCompare(b.Locale));
-                voices.forEach(v => {
-                    const opt = document.createElement('option');
-                    opt.value = v.ShortName;
-                    opt.textContent = `${v.FriendlyName}${v.IsMultilingual ? " [Multi]" : ""}`;
-                    opt.setAttribute('data-lang', v.Language);
-                    select.appendChild(opt);
-                });
-            } catch (err) { select.innerHTML = "<option>Error</option>"; }
-        }
+        const canvas = document.getElementById('matrix-canvas');
+        const ctx = canvas.getContext('2d');
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
 
-        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('hidden'); }
+        const ghostText = "LOQUENDONT";
+        const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$+-*/=%";
+        const fontSize = 20;
+        const columns = Math.floor(width / fontSize);
+        const drops = Array(columns).fill(1);
 
-        function setUIBusy(busy) {
-            const btn = document.getElementById('run-btn');
-            const txt = document.getElementById('txt-input');
-            const status = document.getElementById('status');
-            const controls = document.querySelectorAll('button, select, input');
+        const startCol = Math.floor((columns - ghostText.length) / 2);
 
-            if (busy) {
-                controls.forEach(c => c.disabled = true);
-                status.innerText = "PROCESSING REQUEST...";
-                status.className = "working";
-                btn.innerText = "BUSY...";
-            } else {
-                controls.forEach(c => c.disabled = false);
-                status.innerText = "SYSTEM READY";
-                status.className = "";
-                btn.innerText = "Generate & Download";
+        function drawMatrix() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+            ctx.fillRect(0, 0, width, height);
+            
+            for (let i = 0; i < drops.length; i++) {
+                let text;
+                // Ghost brand effect: LOQUENDON'T occasionally flickers in white
+                if (i >= startCol && i < startCol + ghostText.length && Math.random() > 0.96) {
+                    text = ghostText[i - startCol];
+                    ctx.fillStyle = '#fff'; 
+                } else {
+                    text = characters.charAt(Math.floor(Math.random() * characters.length));
+                    ctx.fillStyle = '#00ff41';
+                }
+
+                ctx.font = fontSize + 'px monospace';
+                ctx.fillText(text, i * fontSize, drops[i] * fontSize);
+
+                if (drops[i] * fontSize > height && Math.random() > 0.975) {
+                    drops[i] = 0;
+                }
+                drops[i]++;
             }
         }
+        setInterval(drawMatrix, 40);
 
-        async function generate() {
+        async function startWakeProcess() {
+            document.getElementById('wake-btn').style.display = 'none';
+            document.getElementById('loader').style.display = 'block';
+            
+            const bar = document.getElementById('progress-bar');
+            const text = document.getElementById('status-text');
+            
+            let progress = 0;
+            const progressTimer = setInterval(() => {
+                if (progress < 95) {
+                    progress += Math.random() * 1.8;
+                    bar.style.width = progress + "%";
+                }
+            }, 500);
+
+            // Attempting server wake
+            while(true) {
+                try {
+                    const res = await fetch(`${BASE_URL}/health`);
+                    if(res.ok) break;
+                } catch(e) {}
+                await new Promise(r => setTimeout(r, 2500));
+            }
+
+            clearInterval(progressTimer);
+            bar.style.width = "100%";
+            text.innerText = "CORE_AWAKE_PROCEEDING";
+            
+            await loadVoices();
+
+            setTimeout(() => {
+                document.getElementById('wake-screen').classList.add('exit-top');
+                const app = document.getElementById('main-app');
+                app.style.display = 'grid';
+                setTimeout(() => app.style.opacity = "1", 100);
+            }, 1000);
+        }
+
+        async function loadVoices() {
+            const res = await fetch(`${BASE_URL}/voices`);
+            const voices = await res.json();
+            document.getElementById('voice-select').innerHTML = voices.map(v => 
+                `<option value="${v.ShortName}" data-lang="${v.Language}">${v.FriendlyName}</option>`
+            ).join('');
+        }
+
+        async function generateAudio() {
+            const btn = document.getElementById('gen-btn');
             const text = document.getElementById('txt-input').value;
             if(!text.trim()) return;
-            
-            const shortP = document.getElementById('short-p').value;
-            const longP = document.getElementById('long-p').value;
-            
-            setUIBusy(true);
+
+            btn.disabled = true;
+            btn.innerText = "CAPTURING_STREAM...";
 
             try {
-                const url = `${BASE_URL}/generate?text=${encodeURIComponent(text)}&short_p=${shortP}&long_p=${longP}`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error();
-
-                const blob = await response.blob();
-                const dUrl = window.URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = dUrl;
-                a.download = `loquendont_${Date.now()}.mp3`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(dUrl);
-            } catch (err) {
-                alert("Request failed.");
+                const res = await fetch(`${BASE_URL}/generate?text=${encodeURIComponent(text)}&short_p=350&long_p=800`);
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = "recording.mp3"; a.click();
             } finally {
-                setUIBusy(false);
+                btn.disabled = false;
+                btn.innerText = "GENERATE_NEURAL_STREAM";
             }
         }
 
         function insertVoice() {
-            const v = document.getElementById('voice-select').value;
             const area = document.getElementById('txt-input');
-            area.setRangeText(`\n/voice=${v}\n`, area.selectionStart, area.selectionEnd, 'end');
-            area.focus();
+            area.setRangeText(`\n/voice=${document.getElementById('voice-select').value}\n`, area.selectionStart, area.selectionEnd, 'end');
         }
 
         function insertPause() {
-            const ms = document.getElementById('pause-amt').value || 1000;
             const area = document.getElementById('txt-input');
-            area.setRangeText(`\n/pause=${ms}\n`, area.selectionStart, area.selectionEnd, 'end');
-            area.focus();
+            area.setRangeText(`\n/pause=${document.getElementById('pause-amt').value}\n`, area.selectionStart, area.selectionEnd, 'end');
         }
 
-        async function previewVoice() {
-            const select = document.getElementById('voice-select');
-            const voice = select.value;
-            const lang = select.selectedOptions[0].getAttribute('data-lang');
-            new Audio(`${BASE_URL}/preview?voice=${voice}&lang=${lang}`).play();
+        function previewVoice() {
+            const sel = document.getElementById('voice-select');
+            new Audio(`${BASE_URL}/preview?voice=${sel.value}&lang=${sel.selectedOptions[0].getAttribute('data-lang')}`).play();
         }
 
-        loadVoices();
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
     </script>
 </body>
 </html>

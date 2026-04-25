@@ -5,34 +5,25 @@ from fastapi.middleware.cors import CORSMiddleware
 import edge_tts
 from pydub import AudioSegment
 
-# Python 3.14 Compatibility fixes
 try:
     import audioop_lts
     sys.modules['audioop'] = audioop_lts
     sys.modules['pyaudioop'] = audioop_lts
-except: 
-    pass
+except: pass
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# FFMPEG path setup for Render environment
+# FFMPEG path setup
 ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg", "ffmpeg")
 if os.path.exists(ffmpeg_path):
     AudioSegment.converter = ffmpeg_path
 
-# Pattern: Commands, Ellipses, Long Punctuation, Short Punctuation, or Blank Lines
 CMD_PATTERN = re.compile(r'(/voice=[^ \n\r]+|/pause=\d+|\.\.\.|[.?!]|[,,;]|\n\n)')
 
-def translate_text(text, target_lang):
-    try:
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl={target_lang}&dt=t&q={urllib.parse.quote(text)}"
-        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
-            res = response.read().decode('utf-8')
-            return res.split('"')[1]
-    except:
-        return text
+@app.get("/health")
+async def health():
+    return {"status": "online"}
 
 @app.get("/voices")
 async def get_voices():
@@ -56,7 +47,6 @@ async def process_text_to_audio(text: str, short_p: int, long_p: int):
     
     for token in tokens:
         if not token: continue
-        
         if token.startswith("/voice="):
             current_voice = token.split("=")[1].strip()
         elif token.startswith("/pause="):
@@ -85,7 +75,6 @@ async def process_text_to_audio(text: str, short_p: int, long_p: int):
             await edge_tts.Communicate(clean_token, current_voice).save(temp_name)
             combined += AudioSegment.from_mp3(temp_name)
             os.remove(temp_name)
-            
     return combined
 
 @app.get("/generate")
@@ -97,7 +86,7 @@ async def generate(text: str = Query(...), short_p: int = 300, long_p: int = 800
 
 @app.get("/preview")
 async def preview(voice: str, lang: str):
-    msg = translate_text("This is a preview of the selected voice.", lang)
+    # Simplified preview for health/stability
     out = f"/tmp/preview_{uuid.uuid4()}.mp3"
-    await edge_tts.Communicate(msg, voice).save(out)
+    await edge_tts.Communicate("Preview", voice).save(out)
     return FileResponse(out, media_type="audio/mpeg")
