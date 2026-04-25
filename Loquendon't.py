@@ -4,48 +4,53 @@ import asyncio
 import re
 import os
 import sys
+import threading
+import time
 from pydub import AudioSegment
 
-# --- Configuration ---
-# NOTE: pydub requires FFmpeg to be installed on your system and accessible in PATH.
+# --- Configuration & Colors ---
 TEMP_DIR = "tts_temp_segments"
-VOICE_CMD_PATTERN = re.compile(r'/voice=(\d+)', re.IGNORECASE)
+VOICE_CMD_PATTERN = re.compile(r'(/voice=\d+)')
+PAUSE_CMD_PATTERN = re.compile(r'(/pause=\d+)')
+SPLIT_PATTERN = re.compile(r'(/voice=\d+|/pause=\d+|\n+)')
 
-# --- Asynchronous Helper for Edge-TTS (FIX) ---
+# ANSI Color Codes
+CLR_FATAL = "\033[38;5;88m"    # Dark Red
+CLR_CRITICAL = "\033[91m"      # Bright Red
+CLR_WARNING = "\033[93m"       # Yellow
+CLR_RESET = "\033[0m"
+
+def log_error(level, message):
+    """Prints colored error messages without breaking the progress bar line."""
+    colors = {"FATAL": CLR_FATAL, "CRITICAL": CLR_CRITICAL, "WARNING": CLR_WARNING}
+    color = colors.get(level, CLR_RESET)
+    # Clear the current line before printing error to avoid overlap
+    sys.stdout.write(f"\r\033[K{color}[{level}] {message}{CLR_RESET}\n")
+    sys.stdout.flush()
+
+# --- Async Helper ---
 async def _run_edge_tts_segment_save(text, voice_id, output_path):
-    """Asynchronous function to encapsulate edge-tts communication."""
-    communicate = edge_tts.Communicate(text, voice_id)
-    await communicate.save(output_path)
+    try:
+        communicate = edge_tts.Communicate(text, voice_id)
+        await communicate.save(output_path)
+    except Exception as e:
+        raise e
 
 class UnifiedTTSEngine:
-    """
-    Manages pyttsx3 (SAPI5/offline) and edge_tts (Online/Edge) engines
-    and provides a unified list of available voices.
-    """
     def __init__(self):
-        print("Initializing TTS engines...")
-        # We no longer store the engine, as we initialize it per-segment for reliability
         self.unified_voices = [] 
         self.pyttsx3_available = False
-
-        # 1. Map pyttsx3 voices (Requires temporary engine init)
         self._map_pyttsx3_voices()
-
-        # 2. Get edge-tts voices (Online voices)
         self._map_edge_tts_voices()
 
         if not self.unified_voices:
-            print("\nFATAL: No voices found on this system (neither pyttsx3 nor edge_tts). Cannot proceed.", file=sys.stderr)
+            log_error("FATAL", "No TTS voices found. Engine cannot start.")
             sys.exit(1)
 
-        print(f"Initialization complete. Found {len(self.unified_voices)} total voices.")
-
     def _map_pyttsx3_voices(self):
-        """Initializes a temporary pyttsx3 engine to map voices, then stops it."""
         temp_engine = None
         try:
             temp_engine = pyttsx3.init()
-            print("  - Fetching pyttsx3 (Offline) voices...")
             pyttsx3_voices = temp_engine.getProperty('voices')
             for voice in pyttsx3_voices:
                 self.unified_voices.append({
@@ -57,26 +62,15 @@ class UnifiedTTSEngine:
                 })
             self.pyttsx3_available = True
         except Exception as e:
-            print(f"Warning: pyttsx3 initialization failed. Offline voices will not be available. Error: {e}", file=sys.stderr)
+            log_error("WARNING", f"pyttsx3 offline engine failed: {e}")
             self.pyttsx3_available = False
         finally:
-            # Crucial: Stop the temporary engine immediately after fetching voices
-            if temp_engine:
-                temp_engine.stop()
-
+            if temp_engine: temp_engine.stop()
 
     def _map_edge_tts_voices(self):
-        """Maps edge_tts voices to the unified list."""
-        # edge-tts list_voices is an async operation, but we run it once here
-        # to set up the voice list.
-        async def _fetch_edge_voices():
-            return await edge_tts.list_voices()
-            
+        async def _fetch_edge_voices(): return await edge_tts.list_voices()
         try:
-            print("  - Fetching edge-tts (Online) voices...")
-            # Use asyncio.run for robust blocking execution during initialization
             voices_list_raw = asyncio.run(_fetch_edge_voices())
-
             for voice in voices_list_raw:
                 self.unified_voices.append({
                     'index': len(self.unified_voices),
@@ -86,281 +80,162 @@ class UnifiedTTSEngine:
                     'lang': voice['Locale']
                 })
         except Exception as e:
-            print(f"Warning: edge-tts voice fetching failed. Online voices may be unavailable. Error: {e}", file=sys.stderr)
-
-    def get_voice_by_index(self, index):
-        """Retrieves a voice object by its unified index."""
-        try:
-            return self.unified_voices[index]
-        except IndexError:
-            return None
-
-    def list_voices(self):
-        """Prints the full list of unified voices."""
-        print("\n--- Available TTS Voices ---")
-        print(f"| {'ID':<3} | {'Engine':<10} | {'Name':<50} | {'Language':<10} |")
-        print("|" + "-"*3 + "|" + "-"*10 + "|" + "-"*50 + "|" + "-"*10 + "|")
-        for voice in self.unified_voices:
-            name = voice['name'] if voice['engine'] == 'pyttsx3' else voice['id']
-            # Truncate long names for clean display
-            display_name = (name[:47] + '...') if len(name) > 50 else name.ljust(50)
-            
-            print(f"| {voice['index']:<3} | {voice['engine']:<10} | {display_name} | {voice['lang']:<10} |")
-        print("----------------------------\n")
+            log_error("WARNING", f"edge-tts online engine failed: {e}")
 
     def synthesize_segment(self, text, voice_index, base_output_path):
-        """
-        Synthesizes a single text segment using the correct engine. 
-        Returns the final, correctly-named file path if successful, otherwise None.
-        """
-        voice = self.get_voice_by_index(voice_index)
-        if not voice:
-            print(f"Error: Voice ID {voice_index} not found. Skipping segment.", file=sys.stderr)
-            return None
-
-        # Determine the correct extension based on the engine
+        voice = self.unified_voices[voice_index]
         ext = '.wav' if voice['engine'] == 'pyttsx3' else '.mp3'
-        
-        # Construct the final output path with the correct extension
         output_filepath = base_output_path + ext
 
-        print(f"-> Synthesizing (Voice: {voice_index} - {voice['engine']}): '{text[:30].strip()}...' to {output_filepath}")
-        print(f"   [DEBUG] Chosen Engine: {voice['engine']}, Extension: {ext}")
-
         if voice['engine'] == 'pyttsx3':
-            if not self.pyttsx3_available:
-                 print("Error: pyttsx3 engine is not available.", file=sys.stderr)
-                 return None
-
-            temp_engine = None
+            temp_engine = pyttsx3.init()
             try:
-                # Initialize engine instance inside the function for segment
-                temp_engine = pyttsx3.init()
                 temp_engine.setProperty('voice', voice['id'])
-                
-                # pyttsx3 can only reliably save to WAV
                 temp_engine.save_to_file(text, output_filepath)
-                
-                # This is the blocking call that executes the save
                 temp_engine.runAndWait()
-                
-                # Check if file was created
-                return output_filepath if os.path.exists(output_filepath) else None
-            except Exception as e:
-                print(f"Error synthesizing with pyttsx3: {e}", file=sys.stderr)
-                return None
+                return output_filepath
             finally:
-                # Explicitly stop the driver to prevent the internal event loop from hanging
-                if temp_engine:
-                    temp_engine.stop()
+                temp_engine.stop()
+        else:
+            asyncio.run(_run_edge_tts_segment_save(text, voice['id'], output_filepath))
+            return output_filepath
 
+# --- Smooth UI Manager ---
+class ProgressManager:
+    def __init__(self, total_segments):
+        self.total = total_segments
+        self.current = 0
+        self.running = True
+        self.spinners = ['|', '/', '-', '\\']
+        self.spinner_idx = 0
 
-        elif voice['engine'] == 'edge-tts':
-            try:
-                # Use asyncio.run on the async helper function to create a clean event loop
-                asyncio.run(_run_edge_tts_segment_save(text, voice['id'], output_filepath))
+    def draw(self):
+        """The actual drawing logic for the progress bar."""
+        width = 40
+        # Force float division for percentage
+        percent = (float(self.current) / self.total) * 100 if self.total > 0 else 0
+        filled = int(width * self.current // self.total) if self.total > 0 else 0
+        bar = '█' * filled + '-' * (width - filled)
+        
+        sys.stdout.write(f"\rProcessing: [{bar}] {self.spinners[self.spinner_idx % 4]} {percent:.2f}%")
+        sys.stdout.flush()
 
-                # Check if file was created
-                return output_filepath if os.path.exists(output_filepath) else None
-            except Exception as e:
-                print(f"Error synthesizing with edge-tts: {e}", file=sys.stderr)
-                return None
+    def animate(self):
+        """Threaded function to keep the spinner moving smoothly."""
+        while self.running:
+            self.draw()
+            self.spinner_idx += 1
+            time.sleep(0.1)
 
-        return None # Should be unreachable
+    def update(self, val):
+        self.current = val
 
-# --- Core Logic ---
+    def stop(self):
+        self.running = False
+        # Small sleep to let the thread finish its last cycle
+        time.sleep(0.1)
+        # Ensure the final 100.00% state is drawn
+        self.current = self.total
+        self.draw()
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+
+# --- Logic ---
 
 def parse_input_file(input_filepath, default_voice_index):
-    """
-    Reads the input file and splits the content into text segments
-    and associated voice IDs based on the /voice=ID command.
-    """
     try:
-        # Use a raw string for compatibility, though path strings should handle backslashes correctly here
         with open(input_filepath, 'r', encoding='utf-8') as f:
             content = f.read()
-    except FileNotFoundError:
-        print(f"Error: Input file not found at '{input_filepath}'", file=sys.stderr)
-        return []
     except Exception as e:
-         print(f"Error opening input file: {e}", file=sys.stderr)
-         return []
+        log_error("CRITICAL", f"Could not read file: {e}")
+        return []
 
-    # Replace newlines with spaces for simpler parsing, but keep paragraph breaks
-    content = content.replace('\n', ' ').replace('\r', '')
-
-    # Split the text by the voice command, but keep the command in the list
-    parts = VOICE_CMD_PATTERN.split(content)
-
+    tokens = re.split(SPLIT_PATTERN, content)
     segments = []
     current_voice_index = default_voice_index
 
-    i = 0
-    while i < len(parts):
-        part = parts[i].strip()
-
-        if not part:
-            i += 1
-            continue
-
-        if VOICE_CMD_PATTERN.match(f"/voice={part}"):
-            # It's a voice ID (because re.split keeps the captured group at this index)
-            try:
-                current_voice_index = int(part)
-                # Skip the captured group part and move to the next text segment
-                i += 1
-                continue
-            except ValueError:
-                # Should not happen if regex worked, but for safety
-                i += 1
-                continue
+    for token in tokens:
+        if not token: continue
+        if token.startswith('/voice='):
+            try: current_voice_index = int(token.split('=')[1])
+            except: pass
+        elif token.startswith('/pause='):
+            try: segments.append({'type': 'pause', 'duration': int(token.split('=')[1])})
+            except: pass
+        elif '\n' in token:
+            segments.append({'type': 'pause', 'duration': 800 if token.count('\n') >= 2 else 300})
         else:
-            # It's a text segment
-            segments.append({
-                'text': part, 
-                'voice_index': current_voice_index
-            })
-            i += 1
-            
+            sub_parts = re.split(r'([.!?;]+|,)', token)
+            for part in sub_parts:
+                if not part.strip(): continue
+                segments.append({'type': 'text', 'text': part, 'voice_index': current_voice_index})
+                if part in ['.', '!', '?', ';']: segments.append({'type': 'pause', 'duration': 500})
+                elif part == ',': segments.append({'type': 'pause', 'duration': 250})
     return segments
 
-def process_and_concatenate(engine: UnifiedTTSEngine, input_file, output_file):
-    """
-    Handles the full pipeline: parsing, segment synthesis, and concatenation.
-    """
-    default_voice_index = 0
-    segments = parse_input_file(input_file, default_voice_index)
+def process_and_concatenate(engine, input_file, output_file):
+    segments = parse_input_file(input_file, 0)
+    if not segments: return
 
-    if not segments:
-        print("No processable text segments found. Exiting.")
-        return
-
-    # 1. Setup temporary directory
     os.makedirs(TEMP_DIR, exist_ok=True)
-    temp_files = []
-
-    # 2. Process each segment
-    print("\n--- Starting Segment Synthesis ---")
-    
-    successful_segments = 0
-    for i, segment in enumerate(segments):
-        # Base path without extension
-        base_temp_path = os.path.join(TEMP_DIR, f"segment_{i}") 
-        
-        # Check if the voice index is valid
-        if segment['voice_index'] >= len(engine.unified_voices):
-            print(f"Warning: Voice ID {segment['voice_index']} is out of range. Using default voice (ID {default_voice_index}).", file=sys.stderr)
-            segment['voice_index'] = default_voice_index
-
-        # synthesize_segment returns the final, correctly-named file path (e.g., segment_i.mp3 or segment_i.wav)
-        final_temp_path = engine.synthesize_segment(segment['text'], segment['voice_index'], base_temp_path)
-
-        if final_temp_path:
-            temp_files.append(final_temp_path)
-            successful_segments += 1
-        else:
-            print(f"Failed to generate audio for segment {i}. Skipping.", file=sys.stderr)
-
-    if successful_segments == 0:
-        print("\nFailed to generate any audio segments. Aborting concatenation.", file=sys.stderr)
-        return
-
-    # 3. Concatenate audio files using pydub
-    print("\n--- Starting Audio Concatenation ---")
     combined_audio = AudioSegment.empty()
     
-    # Load and append all successfully generated temporary files
-    for temp_path in temp_files:
-        try:
-            segment_audio = AudioSegment.from_file(temp_path) 
-            combined_audio += segment_audio
-        except Exception as e:
-            print(f"Error loading temporary file {temp_path} for concatenation: {e}", file=sys.stderr)
-            
-    # 4. Export final file
-    print(f"Exporting final file to '{output_file}'...")
+    ui = ProgressManager(len(segments))
+    spinner_thread = threading.Thread(target=ui.animate, daemon=True)
+    spinner_thread.start()
+
     try:
-        # Use the file extension to determine export format
-        extension = os.path.splitext(output_file)[1].lower().strip('.')
-        if not extension:
-            output_file += ".wav"
-            extension = "wav"
-
-        combined_audio.export(output_file, format=extension)
-        print(f"\nSUCCESS! Audio saved as '{output_file}'")
-    except Exception as e:
-        print(f"FATAL: Failed to export final audio file. Ensure FFmpeg is installed and accessible. Error: {e}", file=sys.stderr)
-
-    # 5. Cleanup
-    for temp_path in temp_files:
-        os.remove(temp_path)
-    os.rmdir(TEMP_DIR)
-    print("Temporary files cleaned up.")
-
-
-def main_menu(engine: UnifiedTTSEngine):
-    """The main command-line interface menu."""
-    while True:
-        print("\n--- Loquendon't menu ---")
-        print("1. List available voices with IDs")
-        print("2. Process text file and generate audio (supports /voice=ID commands)")
-        print("3. Exit")
-        
-        choice = input("Enter your choice (1-3): ").strip()
-
-        if choice == '1':
-            engine.list_voices()
-        
-        elif choice == '2':
-            print("\n[Input/Output Configuration]")
+        for i, seg in enumerate(segments):
+            if seg['type'] == 'pause':
+                combined_audio += AudioSegment.silent(duration=seg['duration'])
+            else:
+                try:
+                    path = engine.synthesize_segment(seg['text'], seg['voice_index'], os.path.join(TEMP_DIR, f"seg_{i}"))
+                    if path:
+                        combined_audio += AudioSegment.from_file(path)
+                        os.remove(path)
+                except Exception as e:
+                    log_error("CRITICAL", f"Segment {i} failed: {e}")
             
-            # Use strip('"') to remove surrounding double quotes, which are often 
-            # included when copying paths with spaces from the file explorer.
-            input_file = input("Enter the input text file path (e.g., input.txt): ").strip().strip('"')
-            output_file = input("Enter the output audio file path MUST BE A .wav File (e.g., output.wav): ").strip().strip('"')
+            ui.update(i + 1)
 
-            if not input_file or not output_file:
-                print("Input and output paths cannot be empty.")
-                continue
+        # Ensure the progress bar reflects 100% while exporting the final file
+        ui.update(len(segments))
+        extension = os.path.splitext(output_file)[1].lower().strip('.') or "wav"
+        combined_audio.export(output_file, format=extension)
+        
+    except Exception as e:
+        log_error("FATAL", f"Conversion failed: {e}")
+    finally:
+        ui.stop()
+        if os.path.exists(TEMP_DIR):
+            try: 
+                for f in os.listdir(TEMP_DIR):
+                    os.remove(os.path.join(TEMP_DIR, f))
+                os.rmdir(TEMP_DIR)
+            except: pass
 
-            try:
-                process_and_concatenate(engine, input_file, output_file)
-            except Exception as e:
-                print(f"An unexpected error occurred during processing: {e}", file=sys.stderr)
-        
-        elif choice == '3':
-            print("Exiting Loquendon't.")
-            break
-        
-        else:
-            print("Invalid choice. Please enter 1, 2, or 3.")
+def main_menu(engine):
+    while True:
+        print("\n--- Loquendon't ---")
+        print("1. List Voices\n2. Process File\n3. Exit")
+        choice = input("Choice: ")
+        if choice == '1': engine.list_voices()
+        elif choice == '2':
+            inf = input("Input path: ").strip().strip('"')
+            outf = input("Output path (.wav): ").strip().strip('"')
+            if os.path.exists(inf): 
+                process_and_concatenate(engine, inf, outf)
+                print(f"SUCCESS! Audio saved as: {outf}")
+            else: log_error("CRITICAL", "Input file not found.")
+        elif choice == '3': break
 
 if __name__ == "__main__":
-    # Ensure all necessary modules are available
     try:
-        import pyttsx3
-        import edge_tts
-        from pydub import AudioSegment
-    except ImportError:
-        print("Required modules are missing. Please install them using:")
-        print("pip install pyttsx3 edge-tts pydub")
-        sys.exit(1)
-        
-    # Create a dummy input file for testing purposes if it doesn't exist
-    test_file = "input.txt"
-    if not os.path.exists(test_file):
-        with open(test_file, "w", encoding="utf-8") as f:
-            f.write(
-                f"Hello and welcome to the Multi-Voice Text-to-Speech System.\n\n"
-                f"This entire application is running using local voices and online voices seamlessly.\n\n"
-                f"/voice=1 This segment should be spoken by voice 1. It is likely a different gender or accent from the default voice.\n\n"
-                f"/voice=0 We switch back to the default voice (voice 0) for this final thought. Enjoy your generated audio!"
-            )
-        print(f"NOTE: A sample input file ('{test_file}') has been created for demonstration.")
-
-
-    tts_engine = UnifiedTTSEngine()
-    if tts_engine.unified_voices:
-        pass
-    
-    main_menu(tts_engine)
+        tts_engine = UnifiedTTSEngine()
+        main_menu(tts_engine)
+    except KeyboardInterrupt:
+        print("\nOperation cancelled.")
+        sys.exit(0)
+    except Exception as e:
+        log_error("FATAL", f"Unexpected crash: {e}")
