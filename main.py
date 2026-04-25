@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import edge_tts
 from pydub import AudioSegment
 
+# Python 3.14 Compatibility
 try:
     import audioop_lts
     sys.modules['audioop'] = audioop_lts
@@ -14,6 +15,7 @@ except: pass
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+# FFMPEG path setup for Render
 ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg", "ffmpeg")
 if os.path.exists(ffmpeg_path):
     AudioSegment.converter = ffmpeg_path
@@ -37,10 +39,12 @@ async def get_voices():
     processed = []
     for v in voice_list:
         is_multi = "Multilingual" in v.get("VoiceTag", {}).get("VoicePersonalities", [])
+        
         processed.append({
             "ShortName": v["ShortName"],
             "FriendlyName": v["FriendlyName"],
             "Language": v["Locale"].split("-")[0],
+            "Locale": v["Locale"],
             "IsMultilingual": is_multi
         })
     return processed
