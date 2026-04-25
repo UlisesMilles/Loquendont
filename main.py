@@ -1,6 +1,6 @@
 import sys, os, re, asyncio, uuid
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import edge_tts
 from pydub import AudioSegment
@@ -20,8 +20,20 @@ ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg", "ffmpeg")
 if os.path.exists(ffmpeg_path):
     AudioSegment.converter = ffmpeg_path
 
-# This pattern finds /voice=, /pause=, or new lines
 CMD_PATTERN = re.compile(r'(/voice=[^ \n\r]+|/pause=\d+|\n)')
+
+@app.get("/voices")
+async def get_voices():
+    voices = await edge_tts.VoicesManager.create()
+    voice_list = voices.voices
+    return [
+        {
+            "ShortName": v["ShortName"], 
+            "FriendlyName": f"{v['Locale']} - {v['FriendlyName']}",
+            "Language": v["Locale"].split("-")[0]
+        } 
+        for v in voice_list
+    ]
 
 async def process_text_to_audio(text: str):
     tokens = re.split(CMD_PATTERN, text)
@@ -30,22 +42,20 @@ async def process_text_to_audio(text: str):
     
     for token in tokens:
         if not token or token == '\n': continue
-        
         if token.startswith("/voice="):
             current_voice = token.split("=")[1].strip()
         elif token.startswith("/pause="):
-            ms = int(token.split("=")[1])
-            combined += AudioSegment.silent(duration=ms)
+            try:
+                ms = int(token.split("=")[1])
+                combined += AudioSegment.silent(duration=ms)
+            except: pass
         else:
-            # It's actual text - generate speech
             temp_name = f"/tmp/{uuid.uuid4()}.mp3"
             communicate = edge_tts.Communicate(token.strip(), current_voice)
             await communicate.save(temp_name)
-            
             segment = AudioSegment.from_mp3(temp_name)
             combined += segment
-            os.remove(temp_name) # Clean up
-            
+            os.remove(temp_name)
     return combined
 
 @app.get("/generate")
