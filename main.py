@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import edge_tts
 from pydub import AudioSegment
 
-# Python 3.14 Compatibility
 try:
     import audioop_lts
     sys.modules['audioop'] = audioop_lts
@@ -37,15 +36,17 @@ async def get_voices():
     voice_list = voices.voices
     processed = []
     for v in voice_list:
-        # Determine if multilingual based on VoiceTag
         is_multi = "Multilingual" in v.get("VoiceTag", {}).get("VoicePersonalities", [])
+        
+        raw_name = v["FriendlyName"].split("-")[-1].strip().replace("Neural", "")
+        
+        country = v["FriendlyName"].split("(")[1].split(",")[0] if "(" in v["FriendlyName"] else "Unknown"
         
         processed.append({
             "ShortName": v["ShortName"],
-            "Name": v["FriendlyName"].split("-")[-1].strip(),
-            "Country": v["FriendlyName"].split("(")[1].split(",")[0] if "(" in v["FriendlyName"] else "Unknown",
+            "Name": raw_name,
+            "Country": country,
             "Language": v["Locale"].split("-")[0],
-            "Locale": v["Locale"],
             "IsMultilingual": is_multi
         })
     return processed

@@ -13,7 +13,7 @@
         .accent { color: #fff; font-weight: bold; background: #222; padding: 2px 5px; border-radius: 3px; }
         textarea { width: 100%; flex: 1; background: var(--panel); color: var(--glow); border: 1px solid #333; padding: 15px; font-size: 16px; outline: none; resize: none; box-sizing: border-box; }
         .toolbar { display: flex; gap: 10px; flex-wrap: wrap; background: #181818; padding: 15px; border-radius: 5px; align-items: center; }
-        select, input { background: #000; color: var(--glow); border: 1px solid #444; padding: 8px; max-width: 400px; }
+        select, input { background: #000; color: var(--glow); border: 1px solid #444; padding: 8px; max-width: 500px; }
         button { padding: 10px 20px; background: #000; color: var(--glow); border: 1px solid var(--glow); cursor: pointer; font-family: inherit; font-weight: bold; text-transform: uppercase; }
         button:hover { background: var(--glow); color: #000; }
         button.primary { background: var(--glow); color: #000; padding: 15px 40px; font-size: 18px; }
@@ -68,15 +68,17 @@
                 const response = await fetch(`${BASE_URL}/voices`);
                 const voices = await response.json();
                 select.innerHTML = "";
-
+                
+                // Sort by name
                 voices.sort((a, b) => a.Name.localeCompare(b.Name));
 
                 voices.forEach(v => {
                     const opt = document.createElement('option');
                     opt.value = v.ShortName;
                     
-                    const multiTag = v.IsMultilingual ? "[Multilingual] " : "";
-                    opt.textContent = `${v.Name} (${v.Country}) - ${v.Locale} ${multiTag}`;
+                    const multiTag = v.IsMultilingual ? " [Multilingual]" : "";
+                    // FORMAT: VoiceName (Country) [Multilingual]
+                    opt.textContent = `${v.Name} (${v.Country})${multiTag}`;
                     
                     opt.setAttribute('data-lang', v.Language);
                     select.appendChild(opt);
