@@ -1,4 +1,4 @@
-import sys, os, re, asyncio, uuid
+import sys, os, re, asyncio, uuid, urllib.parse, urllib.request
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +22,16 @@ if os.path.exists(ffmpeg_path):
 
 CMD_PATTERN = re.compile(r'(/voice=[^ \n\r]+|/pause=\d+|\n)')
 
+def translate_text(text, target_lang):
+    try:
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl={target_lang}&dt=t&q={urllib.parse.quote(text)}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            res = response.read().decode('utf-8')
+            return res.split('"')[1]
+    except:
+        return text # Fallback to original if translation fails
+
 @app.get("/voices")
 async def get_voices():
     voices = await edge_tts.VoicesManager.create()
@@ -29,7 +39,7 @@ async def get_voices():
     return [
         {
             "ShortName": v["ShortName"], 
-            "FriendlyName": f"{v['Locale']} - {v['FriendlyName']}",
+            "FriendlyName": v["FriendlyName"].split("-")[-1].strip(), # Removes the Locale prefix
             "Language": v["Locale"].split("-")[0]
         } 
         for v in voice_list
@@ -64,3 +74,14 @@ async def generate(text: str = Query(...)):
     audio_data = await process_text_to_audio(text)
     audio_data.export(final_path, format="mp3")
     return FileResponse(final_path, media_type="audio/mpeg", filename="loquendont.mp3")
+
+@app.get("/preview")
+async def preview(voice: str, lang: str):
+    """Special endpoint for translated previews"""
+    original_msg = "This is a preview of the selected voice."
+    translated_msg = translate_text(original_msg, lang)
+    
+    out = f"/tmp/preview_{uuid.uuid4()}.mp3"
+    communicate = edge_tts.Communicate(translated_msg, voice)
+    await communicate.save(out)
+    return FileResponse(out, media_type="audio/mpeg")

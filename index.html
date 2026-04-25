@@ -60,12 +60,12 @@
     </div>
 
     <script>
-        const RENDER_URL = "https://loquendont.onrender.com/generate";
+        const BASE_URL = "https://loquendont.onrender.com";
 
         async function loadVoices() {
             const select = document.getElementById('voice-select');
             try {
-                const response = await fetch(`${RENDER_URL.replace('/generate', '/voices')}`);
+                const response = await fetch(`${BASE_URL}/voices`);
                 const voices = await response.json();
                 select.innerHTML = "";
                 voices.sort((a, b) => a.FriendlyName.localeCompare(b.FriendlyName));
@@ -103,27 +103,22 @@
             const lang = select.selectedOptions[0].getAttribute('data-lang');
             const status = document.getElementById('status');
             
-            const greetings = {
-                'en': "Hello, this is a preview.",
-                'es': "Hola, esta es una vista previa.",
-                'fr': "Bonjour, ceci est un aperçu.",
-                'de': "Hallo, dies ist eine Vorschau.",
-                'it': "Ciao, questa è un'anteprima.",
-                'pt': "Olá, esta é uma prévia.",
-                'ja': "こんにちは、これはプレビューです。"
-            };
-
-            const msg = greetings[lang] || "Hello, this is a preview.";
-            status.innerText = "PLAYING PREVIEW...";
-            const previewUrl = `${RENDER_URL}?text=${encodeURIComponent('/voice=' + voice + ' ' + msg)}`;
-            new Audio(previewUrl).play();
+            status.innerText = "TRANSLATING & LOADING PREVIEW...";
+            
+            const previewUrl = `${BASE_URL}/preview?voice=${voice}&lang=${lang}`;
+            const audio = new Audio(previewUrl);
+            audio.play().then(() => {
+                status.innerText = "PLAYING PREVIEW";
+            }).catch(() => {
+                status.innerText = "ERROR: Server waking up?";
+            });
         }
 
         function generate() {
             const text = document.getElementById('txt-input').value;
             if(!text.trim()) return;
             document.getElementById('status').innerText = "GENERATING FULL MP3...";
-            window.location.assign(`${RENDER_URL}?text=${encodeURIComponent(text)}`);
+            window.location.assign(`${BASE_URL}/generate?text=${encodeURIComponent(text)}`);
             setTimeout(() => { document.getElementById('status').innerText = "SYSTEM READY"; }, 5000);
         }
 
