@@ -8,7 +8,7 @@ Initially I was just going to delete it after using it for what I wanted it, but
 # How to run it
 you will need python to run the script (I used python 3.12 to make it, but any newer version should do the trick)
 you will need the following libraries: pyttsx3, edge-tts and pydub. Wich can be installed with the pip command.
-```pip install pyttsx3 edge-tts pydub```
+```pip install pyttsx3 edge-tts pydub audioop-lts```
 You will also need to have FFMPEG installed and added to PATH (google how to do it).
 Download the repo, and save it into whatever folder.
 Open the cmd (If you want to use powershell rename the file to remove the ' because for whatever reason powershell doesn't like it) and ```cd``` into the folder you saved the script.
