@@ -2,58 +2,125 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Loquendon't Web</title>
+    <title>Loquendon't // Cloud Interface</title>
     <style>
-        body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff41; padding: 40px; max-width: 800px; margin: auto; }
-        textarea { width: 100%; height: 200px; background: #111; color: #00ff41; border: 1px solid #00ff41; padding: 10px; font-size: 14px; outline: none; }
-        .controls { margin-top: 20px; display: flex; align-items: center; gap: 20px; }
-        button { padding: 15px 30px; border: 2px solid #00ff41; background: #000; color: #00ff41; font-weight: bold; cursor: pointer; }
-        button:hover { background: #00ff41; color: #000; }
-        button:disabled { border-color: #333; color: #333; cursor: wait; }
-        #status { font-size: 14px; }
+        :root { --glow: #00ff41; --bg: #0a0a0a; --panel: #111; }
+        body { font-family: 'Courier New', monospace; background: var(--bg); color: var(--glow); margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        
+        /* Layout */
+        .sidebar { width: 300px; padding: 30px; border-right: 1px solid #333; background: #0d0d0d; }
+        .main-content { flex: 1; padding: 40px; display: flex; flex-direction: column; gap: 20px; }
+
+        /* Typography */
+        h2 { border-bottom: 2px solid var(--glow); padding-bottom: 10px; margin-top: 0; text-transform: uppercase; letter-spacing: 2px; }
+        p { line-height: 1.5; font-size: 14px; }
+        .accent { color: #fff; font-weight: bold; background: #222; padding: 2px 5px; border-radius: 3px; }
+
+        /* UI Elements */
+        textarea { width: 100%; flex: 1; background: var(--panel); color: var(--glow); border: 1px solid #333; padding: 15px; font-size: 16px; outline: none; resize: none; }
+        textarea:focus { border-color: var(--glow); box-shadow: 0 0 10px rgba(0, 255, 65, 0.2); }
+        
+        .toolbar { display: flex; gap: 10px; flex-wrap: wrap; background: #181818; padding: 15px; border-radius: 5px; }
+        select, input { background: #000; color: var(--glow); border: 1px solid #444; padding: 8px; outline: none; }
+        
+        button { padding: 10px 20px; background: #000; color: var(--glow); border: 1px solid var(--glow); cursor: pointer; font-family: inherit; font-weight: bold; text-transform: uppercase; transition: 0.2s; }
+        button:hover { background: var(--glow); color: #000; }
+        button.primary { background: var(--glow); color: #000; padding: 15px 40px; font-size: 18px; margin-top: 10px; }
+        
+        .status-bar { font-size: 12px; opacity: 0.7; }
     </style>
 </head>
 <body>
 
-    <h2>LOQUENDON'T // CLOUD_V1</h2>
-    
-    <textarea id="txt-input">/voice=en-US-AndrewNeural
-Hello.
-/pause=1000
-This is a test of the synchronized files.</textarea>
-    
-    <div class="controls">
-        <button id="run-btn" onclick="generate()">Generate & Download</button>
-        <div id="status">READY</div>
+    <div class="sidebar">
+        <h2>Quick Start</h2>
+        <p>Welcome to the <span class="accent">Loquendon't</span> engine. Generating high-quality audio is easy:</p>
+        <ol>
+            <li>Select a <span class="accent">Voice</span> from the menu and insert it.</li>
+            <li>Type your script. Mix multiple voices if you want!</li>
+            <li>Add <span class="accent">Pauses</span> to make it sound natural.</li>
+            <li>Hit <span class="accent">Generate</span> and your file will auto-download.</li>
+        </ol>
+        <p style="color: #888; font-style: italic;">Note: Long scripts may take a few seconds to process.</p>
+    </div>
+
+    <div class="main-content">
+        <h2>Audio Constructor</h2>
+        
+        <div class="toolbar">
+            <select id="voice-select">
+                <option value="en-US-AndrewNeural">Andrew (US - Male)</option>
+                <option value="en-US-EmmaNeural">Emma (US - Female)</option>
+                <option value="en-GB-SoniaNeural">Sonia (UK - Female)</option>
+                <option value="en-GB-RyanNeural">Ryan (UK - Male)</option>
+                <option value="es-MX-DaliaNeural">Dalia (MX - Female)</option>
+                <option value="es-ES-AlvaroNeural">Alvaro (ES - Male)</option>
+            </select>
+            <button onclick="previewVoice()">Preview</button>
+            <button onclick="insertVoice()">Insert /voice=</button>
+
+            <div style="width: 1px; background: #444; margin: 0 10px;"></div>
+
+            <input type="number" id="pause-amt" value="1000" style="width: 70px;" placeholder="ms">
+            <button onclick="insertPause()">Insert /pause=</button>
+        </div>
+
+        <textarea id="txt-input" placeholder="Start typing or use buttons above to insert commands..."></textarea>
+        
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <button class="primary" id="run-btn" onclick="generate()">Generate & Download</button>
+            <div id="status" class="status-bar">SYSTEM READY</div>
+        </div>
     </div>
 
     <script>
-        const RENDER_URL = "https://loquendont.onrender.com/generate";
+        // 1. UPDATE THIS WITH YOUR ACTUAL RENDER LINK
+        const RENDER_URL = "https://your-service-name.onrender.com/generate";
 
-        function generate() {
-        const text = document.getElementById('txt-input').value;
+        const txtInput = document.getElementById('txt-input');
         const status = document.getElementById('status');
-    
-        // Validate text exists
-        if (!text.trim()) {
-            status.innerText = "ERROR: INPUT IS EMPTY";
-            return;
+
+        // Insert Voice Tag
+        function insertVoice() {
+            const voice = document.getElementById('voice-select').value;
+            const prefix = txtInput.value ? "\n" : "";
+            txtInput.value += `${prefix}/voice=${voice}\n`;
+            txtInput.focus();
         }
 
-        status.innerText = "WAKING UP SERVER...";
-    
-        // Construct the URL
-        const finalUrl = `${RENDER_URL}?text=${encodeURIComponent(text)}`;
-        
-        console.log("Requesting URL:", finalUrl);
-    
-        // This triggers the browser's download manager directly
-        window.location.assign(finalUrl);
+        // Insert Pause Tag
+        function insertPause() {
+            const ms = document.getElementById('pause-amt').value || 1000;
+            const prefix = txtInput.value ? "\n" : "";
+            txtInput.value += `${prefix}/pause=${ms}\n`;
+            txtInput.focus();
+        }
 
-         // Visual feedback
-        setTimeout(() => {
-           status.innerText = "READY / SENT";
-        }, 5000);
+        // Preview Voice (Using local Browser TTS for instant feedback)
+        function previewVoice() {
+            const voiceName = document.getElementById('voice-select').selectedOptions[0].text;
+            const msg = new SpeechSynthesisUtterance(`This is the ${voiceName} voice preview.`);
+            window.speechSynthesis.speak(msg);
+        }
+
+        // Main Generation Logic
+        function generate() {
+            const text = txtInput.value;
+            if (!text.trim()) {
+                alert("Please enter some text first!");
+                return;
+            }
+
+            status.innerText = "UPLOADING TO CLOUD ENGINE...";
+            
+            const finalUrl = `${RENDER_URL}?text=${encodeURIComponent(text)}`;
+            
+            // Direct download trigger
+            window.location.assign(finalUrl);
+
+            setTimeout(() => {
+                status.innerText = "SYSTEM READY";
+            }, 5000);
         }
     </script>
 </body>
