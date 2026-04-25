@@ -1,3 +1,12 @@
+import sys
+
+try:
+    import audioop_lts
+    sys.modules['audioop'] = audioop_lts
+    sys.modules['pyaudioop'] = audioop_lts
+except ImportError:
+    pass 
+
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
 import edge_tts
