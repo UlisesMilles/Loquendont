@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import edge_tts
 from pydub import AudioSegment
 
+# Python 3.14 Compatibility
 try:
     import audioop_lts
     sys.modules['audioop'] = audioop_lts
@@ -14,6 +15,7 @@ except: pass
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
+# FFMPEG path setup for Render
 ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg", "ffmpeg")
 if os.path.exists(ffmpeg_path):
     AudioSegment.converter = ffmpeg_path
@@ -38,9 +40,18 @@ async def get_voices():
     for v in voice_list:
         is_multi = "Multilingual" in v.get("VoiceTag", {}).get("VoicePersonalities", [])
         
-        raw_name = v["FriendlyName"].split("-")[-1].strip().replace("Neural", "")
+        # FriendlyName logic to strip exactly what you showed in the image
+        # Example input: "Microsoft Server Speech Text to Speech Voice (af-ZA, AdriNeural)"
+        # 1. Get the part after the last hyphen or space
+        raw_name = v["ShortName"].split("-")[-1].replace("Neural", "")
         
-        country = v["FriendlyName"].split("(")[1].split(",")[0] if "(" in v["FriendlyName"] else "Unknown"
+        # 2. Get the Country from the FriendlyName (between the first set of parentheses)
+        # We strip out the "Natural" and redundant language names inside
+        fn = v["FriendlyName"]
+        country = "Unknown"
+        if "(" in fn:
+            content = fn.split("(")[1].split(")")[0] # Gets "South Africa, af-ZA" or "South Africa"
+            country = content.split(",")[0].strip()
         
         processed.append({
             "ShortName": v["ShortName"],
