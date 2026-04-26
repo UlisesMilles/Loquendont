@@ -6,6 +6,8 @@ Hi there! This is a TTS script coded in Python, designed to combine offline SAPI
 
 # You can run it on the web too in https://ulisesmilles.github.io/Loquendont/
 
+tho it is recommended to run it locally for large files, since the script runs on Render and I am NOT paying to host a script that is probably just going to be used by 2 people ever.
+
 ## How to run it
 
 You will need Python 3.12 or newer to run the script.
