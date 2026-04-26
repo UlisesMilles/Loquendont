@@ -4,6 +4,8 @@ OpenSource TTS script that ONLY WORKS ON WINDOWS
 
 Hi there! This is a TTS script coded in Python, designed to combine offline SAPI5 voices with online Edge-TTS voices into a single audio file.
 
+# You can run it on the web too in https://ulisesmilles.github.io/Loquendont/
+
 ## How to run it
 
 You will need Python 3.12 or newer to run the script.
