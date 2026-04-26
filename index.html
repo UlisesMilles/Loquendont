@@ -10,6 +10,7 @@
             --matrix-green: #00ff41;
             --dark-green: #003b00;
             --bg: #0a0a0a;
+            --processing-grey: #1a1a1a;
         }
 
         * { box-sizing: border-box; }
@@ -19,41 +20,8 @@
             font-family: 'Courier Prime', monospace; overflow: hidden;
         }
 
-        #matrix-canvas { position: fixed; top: 0; left: 0; z-index: 1; opacity: 1; transition: opacity 1s; }
+        #matrix-canvas { position: fixed; top: 0; left: 0; z-index: 1; opacity: 1; }
 
-        /* WAKE SCREEN */
-        #wake-screen {
-            position: fixed; inset: 0; z-index: 1000;
-            display: none; flex-direction: column;
-            align-items: center; justify-content: center;
-            background: rgba(0, 0, 0, 0.15);
-            backdrop-filter: blur(1.5px); 
-            transition: opacity 1s, transform 0.8s cubic-bezier(0.7, 0, 0.3, 1);
-            opacity: 0;
-        }
-
-        .matrix-title {
-            font-size: 3.5rem; font-weight: bold; letter-spacing: 8px;
-            margin-bottom: 30px; text-shadow: 0 0 20px var(--matrix-green);
-            text-align: center; color: #fff;
-        }
-
-        .btn-term {
-            background: rgba(0, 0, 0, 0.8); color: var(--matrix-green);
-            border: 1px solid var(--matrix-green);
-            padding: 10px 20px; font-family: inherit;
-            cursor: pointer; text-transform: uppercase;
-            transition: 0.2s; font-size: 14px;
-        }
-        .btn-term:hover { background: var(--matrix-green); color: #000; box-shadow: 0 0 20px var(--matrix-green); }
-
-        #wake-btn { padding: 20px 60px; font-size: 1.5rem; font-weight: bold; border-width: 2px; }
-
-        .loading-container { display: none; width: 400px; text-align: center; margin-top: 20px; }
-        .progress-track { width: 100%; height: 10px; border: 1px solid var(--matrix-green); background: rgba(0, 0, 0, 0.6); position: relative; overflow: hidden; }
-        #progress-bar { width: 0%; height: 100%; background: var(--matrix-green); box-shadow: 0 0 15px var(--matrix-green); transition: width 0.6s ease; }
-
-        /* MAIN APP UI */
         #main-app {
             position: relative; z-index: 100;
             display: none; height: 100vh; padding: 20px;
@@ -62,7 +30,7 @@
         }
 
         .panel {
-            background: rgba(0, 10, 0, 0.8);
+            background: rgba(0, 10, 0, 0.9);
             border: 1px solid var(--matrix-green);
             padding: 20px; display: flex; flex-direction: column;
             backdrop-filter: blur(5px);
@@ -72,27 +40,96 @@
         .instructions { font-size: 12px; line-height: 1.6; color: var(--matrix-green); }
         .instructions b { color: #fff; text-shadow: 0 0 5px var(--matrix-green); }
 
+        /* THEMED DROPDOWN */
+        select {
+            background: #000;
+            color: var(--matrix-green);
+            border: 1px solid var(--matrix-green);
+            padding: 8px;
+            font-family: inherit;
+            outline: none;
+            cursor: pointer;
+            appearance: none; /* Removes default arrow to custom style if needed */
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2300ff41%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.4-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px top 50%;
+            background-size: 12px auto;
+            padding-right: 30px;
+        }
+        
+        select option { background: #000; color: var(--matrix-green); }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+        }
+
         textarea {
             flex: 1; background: rgba(0, 0, 0, 0.85); color: var(--matrix-green);
             border: 1px solid var(--dark-green); padding: 15px;
             font-family: inherit; font-size: 16px; outline: none;
             resize: none; line-height: 1.4;
+            transition: background 0.5s, color 0.5s;
         }
-        
-        select, .num-input {
-            background: #000; color: var(--matrix-green);
-            border: 1px solid var(--matrix-green); padding: 8px;
-            font-family: inherit;
+
+        textarea.locked {
+            background: var(--processing-grey);
+            color: #005511;
+            pointer-events: none;
+            border-color: var(--matrix-green);
         }
+
+        /* STEADY OVERLAY (NO FLICKER) */
+        .busy-overlay {
+            display: none;
+            position: absolute; inset: 0;
+            background: rgba(0, 255, 65, 0.05);
+            border: 1px solid var(--matrix-green);
+            pointer-events: none;
+            z-index: 5;
+            text-align: center;
+        }
+        .locked + .busy-overlay { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+        }
+        .busy-overlay::after {
+            content: "SYSTEM BUSY - PROCESSING DATA";
+            font-size: 10px;
+            letter-spacing: 2px;
+            opacity: 0.7;
+        }
+
+        .btn-term {
+            background: rgba(0, 20, 0, 0.6); color: var(--matrix-green);
+            border: 1px solid var(--matrix-green); padding: 10px 20px;
+            cursor: pointer; text-transform: uppercase; font-family: inherit;
+            transition: 0.3s;
+        }
+        .btn-term:hover { background: var(--matrix-green); color: #000; }
 
         .btn-large {
-            background: var(--matrix-green); color: #000;
-            border: none; padding: 20px; cursor: pointer;
-            font-weight: bold; font-family: inherit; font-size: 1.1rem;
-            margin-top: 10px; text-transform: uppercase;
+            background: rgba(0, 40, 0, 0.9); color: var(--matrix-green);
+            border: 2px solid var(--matrix-green); padding: 20px;
+            cursor: pointer; font-weight: bold; font-family: inherit;
+            font-size: 1.2rem; text-transform: uppercase;
+            transition: all 0.3s;
+        }
+        .btn-large:hover:not(:disabled) { background: var(--matrix-green); color: #000; box-shadow: 0 0 30px var(--matrix-green); }
+
+        .btn-large.processing {
+            background: var(--dark-green);
+            color: var(--matrix-green);
+            cursor: wait;
+            opacity: 0.8;
         }
 
-        .exit-top { transform: translateY(-100%); }
+        #wake-screen { position: fixed; inset: 0; z-index: 1000; display: none; flex-direction: column; align-items: center; justify-content: center; background: rgba(0,0,0,0.8); backdrop-filter: blur(2px); opacity: 0; transition: opacity 1s; }
+        .exit-top { transform: translateY(-100%); transition: transform 0.8s; }
     </style>
 </head>
 <body>
@@ -100,11 +137,10 @@
     <canvas id="matrix-canvas"></canvas>
 
     <div id="wake-screen">
-        <div class="matrix-title">SERVER IS SLEEPING</div>
-        <button id="wake-btn" class="btn-term" onclick="startWakeProcess()">WAKE UP</button>
-        <div class="loading-container" id="loader">
-            <div class="progress-track"><div id="progress-bar"></div></div>
-            <div style="font-size: 12px; margin-top: 15px; color: #fff; text-shadow: 0 0 5px #000;" id="status-text">INITIALIZING_WAKE_COMMAND...</div>
+        <h1 style="color:#fff; text-shadow: 0 0 10px var(--matrix-green);">SERVER ASLEEP</h1>
+        <button id="wake-btn" class="btn-term" style="padding: 20px 40px;" onclick="startWakeProcess()">RECONNECT</button>
+        <div id="loader" style="display:none; width: 300px; margin-top: 20px;">
+            <div style="border: 1px solid var(--matrix-green); height: 10px;"><div id="progress-bar" style="width:0%; height:100%; background:var(--matrix-green);"></div></div>
         </div>
     </div>
 
@@ -112,11 +148,8 @@
         <div class="panel">
             <h3 style="margin-top: 0; border-bottom: 1px solid;">SYSTEM_MANUAL</h3>
             <div class="instructions">
-                <p><b>> INJECTING VOICES</b><br>Use the selector to choose a model, then click <span>+ VOICE_TAG</span>.</p>
-                <p><b>> MANUAL PAUSING</b><br>Insert <span>/pause=xxxx</span> (in ms) for silences.</p>
-            </div>
-            <div style="margin-top: auto; font-size: 10px; border-top: 1px solid var(--dark-green); padding-top: 10px;">
-                LINK: STABLE_V.2<br>CORE: ACTIVE
+                <p><b>> INJECTING VOICES</b><br>Select model, click <span>+ Voice</span>.</p>
+                <p><b>> MANUAL PAUSING</b><br>Use <span>/pause=ms</span> tags.</p>
             </div>
         </div>
 
@@ -124,63 +157,51 @@
             <div style="margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px;">
                 <div style="display: flex; gap: 10px;">
                     <select id="voice-select" style="flex: 1;"></select>
-                    <button class="btn-term" onclick="previewVoice()">[ TEST_VOICE ]</button>
+                    <button class="btn-term" onclick="previewVoice()">[ TEST ]</button>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center;">
-                    <button class="btn-term" onclick="insertVoice()">+ Voice_Tag</button>
-                    <button class="btn-term" onclick="insertPause()">+ Pause_Tag</button>
-                    <input type="number" id="pause-amt" class="num-input" value="1000" style="width: 80px;">
-                    <span style="font-size: 12px;">ms</span>
+                    <button class="btn-term" onclick="insertVoice()">+ Voice</button>
+                    <button class="btn-term" onclick="insertPause()">+ Pause</button>
+                    <input type="number" id="pause-amt" class="btn-term" value="1000" style="width: 80px; text-align: center;">
                 </div>
             </div>
-            <textarea id="txt-input" placeholder=">> ENTER DATA FOR NEURAL SYNTHESIS..."></textarea>
-            <button class="btn-large" id="gen-btn" onclick="generateAudio()">EXECUTE_RENDER_PROTOCOL</button>
+            
+            <div class="input-wrapper">
+                <textarea id="txt-input" placeholder="Enter text here"></textarea>
+                <div class="busy-overlay"></div>
+            </div>
+
+            <button class="btn-large" id="gen-btn" onclick="generateAudio()">Process Audio</button>
         </div>
     </div>
 
     <script>
         const BASE_URL = "https://loquendont.onrender.com"; 
-
         const canvas = document.getElementById('matrix-canvas');
         const ctx = canvas.getContext('2d');
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
-        const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789$+-*/=%";
-        
+        const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         const ghostText = "LOQUENDONT";
         const fontSize = 20;
         const columns = Math.floor(width / fontSize);
         const drops = Array(columns).fill(1);
         const startCol = Math.floor((columns - ghostText.length) / 2);
-        
-        let initialFillComplete = false;
 
         function drawMatrix() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.08)';
             ctx.fillRect(0, 0, width, height);
-            
-            let allBottom = true;
             for (let i = 0; i < drops.length; i++) {
-                let text;
+                let text = characters.charAt(Math.floor(Math.random() * characters.length));
+                ctx.fillStyle = '#00ff41';
                 if (i >= startCol && i < startCol + ghostText.length && Math.random() > 0.96) {
                     text = ghostText[i - startCol];
                     ctx.fillStyle = '#fff';
-                } else {
-                    text = characters.charAt(Math.floor(Math.random() * characters.length));
-                    ctx.fillStyle = '#00ff41';
                 }
-
                 ctx.font = fontSize + 'px monospace';
                 ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-                
-                if (drops[i] * fontSize < height) allBottom = false;
                 if (drops[i] * fontSize > height && Math.random() > 0.975) drops[i] = 0;
                 drops[i]++;
-            }
-            
-            if (allBottom && !initialFillComplete) {
-                initialFillComplete = true;
-                initCheck();
             }
         }
         setInterval(drawMatrix, 40);
@@ -191,86 +212,62 @@
                 if(res.ok) showApp(); else showWakeScreen();
             } catch(e) { showWakeScreen(); }
         }
+        initCheck();
 
-        function showWakeScreen() { 
-            const ws = document.getElementById('wake-screen');
-            ws.style.display = 'flex';
-            setTimeout(() => ws.style.opacity = "1", 50);
-        }
-
-        async function showApp() {
-            await loadVoices();
-            const app = document.getElementById('main-app');
-            app.style.display = 'grid';
-            setTimeout(() => app.style.opacity = "1", 50);
-        }
+        function showWakeScreen() { document.getElementById('wake-screen').style.display = 'flex'; setTimeout(() => document.getElementById('wake-screen').style.opacity = 1, 50); }
+        function showApp() { loadVoices(); document.getElementById('main-app').style.display = 'grid'; setTimeout(() => document.getElementById('main-app').style.opacity = 1, 50); }
 
         async function startWakeProcess() {
             document.getElementById('wake-btn').style.display = 'none';
             document.getElementById('loader').style.display = 'block';
-            const bar = document.getElementById('progress-bar');
-            const status = document.getElementById('status-text');
-            
             let progress = 0;
-            // Slower, more "calculated" progress bar increments
-            const timer = setInterval(() => { 
-                if (progress < 98) { 
-                    // Adds a random small jump for a "system loading" feel
-                    let increment = Math.random() * 1.2; 
-                    progress += increment; 
-                    bar.style.width = progress + "%";
-                    
-                    if(progress > 30) status.innerText = "BYPASSING_IDLE_PROTOCOL...";
-                    if(progress > 60) status.innerText = "RE-ESTABLISHING_NEURAL_LINK...";
-                    if(progress > 85) status.innerText = "SYNCING_VOICE_MODELS...";
-                } 
-            }, 450);
-
+            const bar = document.getElementById('progress-bar');
+            const t = setInterval(() => { if(progress < 95) { progress += 0.3; bar.style.width = progress + '%'; } }, 500);
             while(true) {
-                try {
-                    const res = await fetch(`${BASE_URL}/health`);
-                    if(res.ok) break;
-                } catch(e) {}
+                try { const r = await fetch(`${BASE_URL}/health`); if(r.ok) break; } catch(e) {}
                 await new Promise(r => setTimeout(r, 2000));
             }
-
-            clearInterval(timer);
-            bar.style.width = "100%";
-            status.innerText = "CONNECTION_ESTABLISHED";
-            
-            await loadVoices();
-            setTimeout(() => {
-                document.getElementById('wake-screen').classList.add('exit-top');
-                showApp();
-            }, 800);
+            clearInterval(t); bar.style.width = '100%';
+            setTimeout(() => { document.getElementById('wake-screen').classList.add('exit-top'); showApp(); }, 600);
         }
 
         async function loadVoices() {
             const res = await fetch(`${BASE_URL}/voices`);
             const voices = await res.json();
-            document.getElementById('voice-select').innerHTML = voices.map(v => 
-                `<option value="${v.ShortName}" data-lang="${v.Language}">${v.FriendlyName}</option>`
-            ).join('');
+            document.getElementById('voice-select').innerHTML = voices.map(v => `<option value="${v.ShortName}" data-lang="${v.Language}">${v.FriendlyName}</option>`).join('');
         }
 
         function previewVoice() {
             const sel = document.getElementById('voice-select');
             const lang = sel.selectedOptions[0].getAttribute('data-lang');
-            new Audio(`${BASE_URL}/preview?voice=${sel.value}&lang=${lang}`).play();
+            new Audio(`${BASE_URL}/preview?voice=${sel.value}&lang=${lang}&text=Preview`).play();
         }
 
         async function generateAudio() {
             const btn = document.getElementById('gen-btn');
-            const text = document.getElementById('txt-input').value;
-            if(!text.trim()) return;
-            btn.disabled = true; btn.innerText = "RENDERING...";
+            const txt = document.getElementById('txt-input');
+            const textVal = txt.value.trim();
+            if(!textVal) return;
+
+            btn.classList.add('processing');
+            btn.innerText = "Processing...";
+            btn.disabled = true;
+            txt.classList.add('locked');
+            txt.readOnly = true;
+
             try {
-                const res = await fetch(`${BASE_URL}/generate?text=${encodeURIComponent(text)}&short_p=350&long_p=800`);
+                const res = await fetch(`${BASE_URL}/generate?text=${encodeURIComponent(textVal)}`);
                 const blob = await res.blob();
                 const url = window.URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = "recording.mp3"; a.click();
+                const a = document.createElement('a'); a.href = url; a.download = "output.mp3"; a.click();
+            } catch (e) {
+                alert("Connection Error");
             } finally {
-                btn.disabled = false; btn.innerText = "EXECUTE_RENDER_PROTOCOL";
+                btn.classList.remove('processing');
+                btn.innerText = "Process Audio";
+                btn.disabled = false;
+                txt.classList.remove('locked');
+                txt.readOnly = false;
             }
         }
 
@@ -283,11 +280,6 @@
             const area = document.getElementById('txt-input');
             area.setRangeText(`\n/pause=${document.getElementById('pause-amt').value}\n`, area.selectionStart, area.selectionEnd, 'end');
         }
-
-        window.addEventListener('resize', () => {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
-        });
     </script>
 </body>
 </html>
