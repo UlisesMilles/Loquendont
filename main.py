@@ -4,6 +4,7 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import edge_tts
 from pydub import AudioSegment
+import json # Added for parsing the trick response
 
 try:
     import audioop_lts
@@ -20,6 +21,19 @@ if os.path.exists(ffmpeg_path):
     AudioSegment.converter = ffmpeg_path
 
 CMD_PATTERN = re.compile(r'(/voice=[^ \n\r]+|/pause=\d+|\.\.\.|[.?!]|[,,;]|\n\n)')
+
+# --- THE LIBRARY-LESS TRICK ---
+def translate_trick(text, target_lang):
+    try:
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl={target_lang}&dt=t&q={urllib.parse.quote(text)}"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        req = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(req) as response:
+            data = json.loads(response.read().decode())
+            return data[0][0][0]
+    except Exception as e:
+        print(f"Trick failed: {e}")
+        return text
 
 @app.get("/health")
 async def health():
@@ -85,8 +99,14 @@ async def generate(text: str = Query(...), short_p: int = 300, long_p: int = 800
     return FileResponse(final_path, media_type="audio/mpeg", filename="loquendont.mp3")
 
 @app.get("/preview")
-async def preview(voice: str, lang: str):
-    # Simplified preview for health/stability
+async def preview(voice: str, lang: str, text: str = "Preview"):
     out = f"/tmp/preview_{uuid.uuid4()}.mp3"
-    await edge_tts.Communicate("Preview", voice).save(out)
+    
+    # Use the trick to translate "Preview" automatically
+    final_text = text
+    if text.lower() == "preview":
+        target_lang = lang.split("-")[0]
+        final_text = translate_trick("Preview", target_lang)
+
+    await edge_tts.Communicate(final_text, voice).save(out)
     return FileResponse(out, media_type="audio/mpeg")
